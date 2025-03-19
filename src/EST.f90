@@ -119,6 +119,7 @@ program EST
     
     ! Determine number of TDHF states to calculate
     nTDHFstates = nO * nV
+    ! Reusing omega array
     allocate(omega(nTDHFstates))
 
     call cpu_time(start_TDHF)
@@ -142,6 +143,8 @@ program EST
     write(*,'(A45,1X,F9.5,A8)') 'Total CPU time for TDHF = ',t_TDHF,' seconds'
     write(*,*) '--------------------------------------------------------------------------------'
     write(*, '(A45,1X,F9.5,A8)') 'Total CPU time for the program',t_HF + t_AOtoMO + t_CIS + t_TDHF,' seconds'
+    write(*,*)
+    write(*,*) 'Your calculation is done. Have a great day!'
 
   !------------------------------------------------------------------------
   ! End of EST

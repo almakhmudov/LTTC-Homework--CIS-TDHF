@@ -11,6 +11,7 @@ subroutine TDHF(nBas, nO, e, ERI_MO, nTDHFstates, omega)
     double precision, allocatable :: A_matrix(:,:), B_matrix(:,:), C_matrix(:,:)
     double precision, allocatable :: AminB(:,:), AplusB(:,:), sqrt_AminB_temp(:,:), AminB_temp(:,:)
     
+    ! Hello world
     write(*,*)
     write(*,*) '**************************************'
     write(*,*) '|          TDHF calculation          |'
@@ -40,13 +41,15 @@ subroutine TDHF(nBas, nO, e, ERI_MO, nTDHFstates, omega)
             j = (jb - 1) / nV + 1
             b = mod(jb - 1, nV) + nO + 1
             
-            ! A matrix (diagonal term and exchange terms)
+            ! A matrix
+            ! Diagonal term
             if (i == j .and. a == b) then
                 A_matrix(ia,jb) = e(a) - e(i)
             end if
             A_matrix(ia,jb) = A_matrix(ia,jb) + 2.0d0 * ERI_MO(i,b,a,j) - ERI_MO(i,b,j,a)
             
-            ! B matrix (exchange terms)
+            ! B matrix
+            ! Exchange terms
             B_matrix(ia,jb) = B_matrix(ia,jb) + 2.0d0 * ERI_MO(i,j,a,b) - ERI_MO(i,j,b,a)
         end do
     end do
@@ -63,10 +66,11 @@ subroutine TDHF(nBas, nO, e, ERI_MO, nTDHFstates, omega)
     end do
     AminB = matmul(AminB_temp, matmul(sqrt_AminB_temp, transpose(AminB_temp)))  ! (A-B)^(-1/2)
 
-    ! Compute C = (A - B)^(-1/2) * (A + B) * (A - B)^(-1/2)
+    ! Compute C matrix
     C_matrix = matmul(AminB, matmul(AplusB, AminB))
 
     ! Diagonalize C to get excitation energies
+    ! Reuse omega array
     omega = 0.0d0
     call diagonalize_matrix(nStates, C_matrix, omega)
     omega = sqrt(omega)  ! Excitation energies
