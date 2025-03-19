@@ -92,125 +92,206 @@ The source code of this project as well as the example input files are available
 \section*{Code Overview}
 
 \subsection*{Input}
-In order to run the code, one should provide two input files, namely \texttt{wavepacket} and \texttt{potential}. It's important to name the files this way. \\
+In order to run the code, one should provide the atom or molecule name and the respective basis set. Currently, Be, He, Ne, and H$_{2}$O are supported as well as the \texttt{cc-pvdz} and \texttt{cc-pvtz} basis sets. The example on how to execute the program can be found in \texttt{README.md} file.
 
-The \texttt{wavepacket} file should contain the following parameters: number of lattice points, initial position of the wavepacket, the initial width, propagation time step, total number of steps, snapshot frequency, total number of coefficients and the coefficients themselves. \\
-
-The \texttt{potential} file should specify the type of a potential, e.g. harmonic and double well are supported, as well as the angular frequency in case of the harmonic potential and the barrier height in case of the double well potential. In both input files, each parameter should be written on a separate line. The example input files can be found in \texttt{harmonic/wavepacket} and \texttt{harmonic/potential}, respectively. \\
-
-\subsection*{Wavepacket Initialisation and Normalisation}
-In this project, instead of using a gaussian wavepacket, the wavepacket is initialised as a superposition of the eigenstates of the harmonic oscillator. At $t = 0$, the wavepacket is given by the following expression:
+\subsection*{AO to MO transformation}
+The AO to MO transformation is performed using the following equation:
 \begin{equation}
-    \Psi(x, t = 0) = \sum_{n=0}^{\infty} c_n \Phi_n(x)
-\label{eq:wavepacket}
+    (pq|rs) = \sum_{\mu\nu\lambda\sigma} c_{\mu p} c_{\nu q} c_{\lambda r} c_{\sigma s} (\mu\nu|\lambda\sigma)
+\end{equation}
+where \(c_{\mu p}\) and the others are the coefficients of the MOs in the AO basis and \((\mu\nu|\lambda\sigma)\) are the integrals in the AO basis. The transformation is performed in the \texttt{AO\_to\_MO} subroutine. Below one could find a code snippet. Only part of the code is visualised.
+
+\begin{lstlisting}[language=Fortran, firstnumber=26, label={lst:AOtoMO}, caption=Subroutine for the \texttt{AO\_to\_MO} transformation. Only part of the full code is mentioned.]
+! Initialisation
+tmp1 = 0.0d0
+tmp2 = 0.0d0
+
+! First quarter-transformation
+do p = 1, nBas
+    do mu = 1, nBas
+    tmp1(p,:,:,:) = tmp1(p,:,:,:) + c(mu,p)*ERI_AO(mu,:,:,:)
+    end do
+end do
+
+! Second quarter-transformation
+do p = 1, nBas
+    do q = 1, nBas
+    do nu = 1, nBas
+        tmp2(p,q,:,:) = tmp2(p,q,:,:) + c(nu,q)*tmp1(p,nu,:,:)
+    end do
+    end do
+end do
+
+tmp1 = 0.0d0
+
+! Third quarter-transformation
+do p = 1, nBas
+    do q = 1, nBas
+    do r = 1, nBas
+        do la = 1, nBas
+        tmp1(p,q,r,:) = tmp1(p,q,r,:) + c(la,r)*tmp2(p,q,la,:)
+        end do
+    end do
+    end do
+end do
+
+tmp2 = 0.0d0
+
+! Fourth quarter-transformation
+do p = 1, nBas
+    do q = 1, nBas
+    do r = 1, nBas
+        do s = 1, nBas
+        do si = 1, nBas
+            tmp2(p,q,r,s) = tmp2(p,q,r,s) + c(si,s)*tmp1(p,q,r,si)
+        end do
+        end do
+    end do
+    end do
+end do
+
+ERI_MO = tmp2
+\end{lstlisting}
+
+The transformation is done in an efficient way as discussed in the \citep{goings2013aotomo} to overcome the $N(O^{8})$ scaling. The transformation is done in four steps. This way the scaling is reduced to $N(O^{5})$.
+
+\subsection*{Configuration Interaction with Singles (CIS)}
+The CIS matrix is constructed using the following equation:
+
+\begin{equation}
+    \mathbf{A} \cdot \mathbf{X}_m = \omega_m \mathbf{X}_m
 \end{equation}
 
-Where the eigenstates of the quantum harmonic oscillator are calculated according to the following formula:
+where the elements of the matrix \(\mathbf{A}\) are given by
+
 \begin{equation}
-    \Phi_n(x) = \frac{1}{\sqrt{2^n n!}} \left( \frac{m\omega}{\pi} \right)^{1/4} e^{-m\omega x^2 /2} H_n(x\sqrt{m\omega})
-    \quad (n = 0,1,2, \cdots)
-\label{eq:eigenstates}
+    A_{ia, jb} = (\epsilon_a - \epsilon_i) \delta_{ij} \delta_{ab} + 2 (ia|bj) - (ij|ba)
 \end{equation}
 
-$H_n$ is the Hermite polynomial of order $n$. We'll touch upon the implementation of the Hermite polynomials in the next section. While initialising the wavepacket according to the \autoref{eq:wavepacket} and \autoref{eq:eigenstates} as shown in \autoref{lst:initpsi}, the calculation of a norm of the wavepacket is performed alongside. The code snippets for the wavepacket initialisation are provided below. \\
+The excitation energies are obtained by diagonalising the matrix \(\mathbf{A}\). The code snippet for the construction of the CIS matrix is provided below.
+
+\begin{lstlisting}[language=Fortran, firstnumber=24, label={lst:CIS}, caption=Subroutine for the CIS matrix construction. Only part of the full code is mentioned.]
+! Construct the CIS matrix
+A_matrix = 0.0d0
+do ia = 1, nStates
+    i = (ia - 1) / nV + 1
+    a = mod(ia - 1, nV) + nO + 1
     
-\begin{lstlisting}[language=Fortran, firstnumber=104, label={lst:initpsi}, caption=Initialisation of the wavepacket in the \texttt{initpsi} subroutine.]
-norm = 0.0d0                                                            
-nmax = size(coeff) - 1                                                  
-do i = -npoints/2 + 1, npoints/2                                       
-    x = dble(i) * dx
-    if (i > 0) then
-        j = i
-    else     
-        j = i + npoints
-    endif
-    psi0(j) = 0.0d0                                                
-    do n = 0, nmax                                                   
-        call factorial(n, fact)                                   
-        psi0(j) = psi0(j) + &                                   
-                coeff(n+1) * &
-                (1.0d0 / sqrt(2.0d0**n * fact)) * &
-                (mass * angfreq / pi)**0.25d0 * &
-                exp(-mass * angfreq * alpha * (x-x0)**2.0d0 / 2.0d0) * &
-                hermite(n, (x-x0) * sqrt(mass * angfreq)) 
+    do jb = 1, nStates
+        j = (jb - 1) / nV + 1
+        b = mod(jb - 1, nV) + nO + 1
+        
+        ! Diagonal term
+        if (i == j .and. a == b) then
+            A_matrix(ia,jb) = e(a) - e(i)
+        end if
+        
+        ! Exchange terms
+        A_matrix(ia,jb) = A_matrix(ia,jb) + 2.0d0 * ERI_MO(i,b,a,j) &
+        - ERI_MO(i,b,j,a)
     end do
-    norm = norm + abs(psi0(j))**2.0d0 * dx                        
 end do
 \end{lstlisting}
 
-As soon as the norm of the wavepacket is calculated, the wavepacket is normalised as shown in \autoref{lst:normalisation}. The normalisation is performed by dividing each element of the wavepacket by the square root of the norm. This ensures that the wavepacket is properly normalised. \\
-
-\begin{lstlisting}[language=Fortran, firstnumber=126, label={lst:normalisation}, caption=Normalisation of the wavepacket in the \texttt{initpsi} subroutine.]
-norm = 1.0d0 / sqrt(norm)                                              
-do i = -npoints/2 + 1, npoints/2
-    x = dble(i) * dx
-    if (i > 0) then
-        j = i
-    else     
-        j = i + npoints
-    endif
-    psi0(j) = norm * psi0(j)                                         
-end do 
-\end{lstlisting}
-
-Due to the need of computing the factorials, the corresponding subroutine is implemented as shown in \autoref{lst:factorial}. The factorial is calculated up to the $n$th order. \\
-
-\begin{lstlisting}[language=Fortran, firstnumber=148, label={lst:factorial}, caption=Calculation of the factorial up to the $n$th order in the \texttt{factorial} subroutine.]
-    result = 1.0d0
-    do i = 1, n                                                            
-       result = result * i
-    end do
-\end{lstlisting}
-
-\subsection*{Hermite Polynomials}
-The Hermite polynomials are calculated using the following recurrence relation:
+\subsection*{Time-Dependent Hartree-Fock (TDHF)}
+To tackle the TDHF problem, the following \(\mathbf{A}\) and \(\mathbf{B}\) matrices are constructed first:
 \begin{equation}
-    H_n(y) = 2y H_{n-1}(y) - 2(n-1)H_{n-2}(y)
-    \quad \left( H_0(y) = 1, \, H_1(y) = 2y \right)
+    A_{ia, jb} = (\epsilon_a - \epsilon_i) \delta_{ij} \delta_{ab} + 2 (ia|bj) - (ij|ba)
 \end{equation}
 
-Where $H_0$ isn't calculated explicitly. The reason to use Hermite polynomials in the wavepacket initialisation is due to the fact that the eigenstates of the quantum harmonic oscillator are expressed in terms of the Hermite polynomials as shown in \autoref{eq:eigenstates}. Specifically, the physicist's Hermite polynomials are used in this project. The code snippet for the calculation of the Hermite polynomials is provided in \autoref{lst:hermite}. \\
+\begin{equation}
+    B_{ia, jb} = 2 (ia|bj) - (ib|ja)
+\end{equation}
+The \(\mathbf{A}\) matrix is the same as in the CIS case. \\
 
-\begin{lstlisting}[language=Fortran, firstnumber=166, label={lst:hermite}, caption=Calculation of the Hermite polynomials up to the $n$th order in the \texttt{hermite} function.]
-if (n == 0) then                                                       
-Hn = 1.0d0
-elseif (n == 1) then                                                
-Hn = 2.0d0 * y
-else                                                                 
-H0 = 1.0d0
-H1 = 2.0d0 * y
-do i = 2, n                                                         
-   H_prev = H1
-   H1 = 2.0d0 * y * H1 - 2.0d0 * (i - 1) * H0                       
-   H0 = H_prev
+To obtain the TDHF excitation energies, one should construct and diagonalise the \(\mathbf{C}\) matrix depicted in the following equation:
+
+\begin{equation}
+    \mathbf{C} = (\mathbf{A} - \mathbf{B})^{1/2} \cdot (\mathbf{A} + \mathbf{B}) \cdot (\mathbf{A} - \mathbf{B})^{1/2}
+\end{equation}
+
+The code snippet for the aforementioned procedures is provided below.
+
+\begin{lstlisting}[language=Fortran, firstnumber=35, label={lst:TDHF}, caption=Subroutine to calculate the TDHF excitation energies. Only part of the full code is mentioned.]
+! Construct A and B matrices
+do ia = 1, nStates
+    i = (ia - 1) / nV + 1
+    a = mod(ia - 1, nV) + nO + 1
+    
+    do jb = 1, nStates
+        j = (jb - 1) / nV + 1
+        b = mod(jb - 1, nV) + nO + 1
+        
+        ! A matrix
+        ! Diagonal term
+        if (i == j .and. a == b) then
+            A_matrix(ia,jb) = e(a) - e(i)
+        end if
+        ! Exchange terms
+        A_matrix(ia,jb) = A_matrix(ia,jb) + 2.0d0 * ERI_MO(i,b,a,j) &
+        - ERI_MO(i,b,j,a)
+        
+        ! B matrix
+        ! Exchange terms
+        B_matrix(ia,jb) = B_matrix(ia,jb) + 2.0d0 * ERI_MO(i,j,a,b) &
+        - ERI_MO(i,j,b,a)
+    end do
 end do
-Hn = H1
-endif
+
+! Compute (A - B) and (A + B)
+AminB = A_matrix - B_matrix
+AplusB = A_matrix + B_matrix
+AminB_temp = AminB
+
+! Compute (A - B)^(-1/2) using matrix diagonalisation
+call diagonalize_matrix(nStates, AminB_temp, omega)
+do i = 1, nStates
+    sqrt_AminB_temp(i,i) = sqrt(omega(i))  ! Square root of eigenvalue
+end do
+! (A-B)^(-1/2)
+AminB = matmul(AminB_temp, matmul(sqrt_AminB_temp, transpose(AminB_temp)))
+
+! Compute C matrix
+C_matrix = matmul(AminB, matmul(AplusB, AminB))
+
+! Diagonalize C to get excitation energies
+! Reuse omega array
+omega = 0.0d0
+call diagonalize_matrix(nStates, C_matrix, omega)
+omega = sqrt(omega)  ! Excitation energies
 \end{lstlisting}
 
 \section*{Results and Discussion}
-The wavepackets were propagated a the bottom of the harmonic potential with the angular frequency $\omega = 0.2825$ fs$^{-1}$. More over they were propagated for 5000 steps with a 0.1 fs time step. The initial width of the wave packet was equal to 1.0 Bohr$^{-2}$ and the snapshots were taken each 10th step. The wavepackets were propagated with different number of eigenstates, namely 1, 2, 3, and 5. The time evolution of the wavepackets is shown in \autoref{fig:snapshots}. \\
+The reported experimental excitation energies for He, Ne, and Be atoms are 24.587, 21.564, and 9.322 eV, respectively \citep{NIST_ASD}. The calculated excitation energies using the \texttt{cc-pvdz} and \texttt{cc-pvtz} basis sets with the CIS and TDHF methods are presented in Table \ref{tab:excitation_energies}. \\
 
-The wavepackets with a single eigenstate are stationary, whilst the wavepackets with multiple eigenstates are oscillating. The oscillations are due to the fact that the wavepacket is a superposition of the eigenstates of the harmonic oscillator. The more eigenstates are included in the wavepacket, the more oscillations are observed. The wavepacket with 5 eigenstates oscillates the most. The oscillations are periodic and the period of the probability density is calculated below. \\
+The results for He and Ne are overestimated while for Be they're underestimated in comparison with the experimental values. The CIS method provides slightly better results compared to the TDHF method in case of the Be atom. On the other hand, the TDHF method shows slightly better results in case of the He atom. The same applies to Ne. This could be due to the lack of correlation effects in the calculations. The correlation effects could be included by using more sophisticated methods such as the flavours of coupled cluster theory. \\
 
-The period of the probability density for the harmonic oscillator case can be calculated from the angular frequency as follows:
-\begin{equation}
-    T = \frac{2\pi}{\omega}
-\label{eq:period}
-\end{equation}
-Therefore the periods $T$ of the corresponding probability densities are equal to $22.23$ fs. \\
+Taking into account the obtained results, one could conclude that both methods could be used to get the solely quantitative picture of the excitation energies. However, the results should be taken with a pinch of salt as the correlation effects are not included in the calculations.
 
-Speaking of the symmetry, the wavepackets with the even number of eigenstates have symmetric probability densities of the wavefunction. On the other hand, the odd number of eigenstates results in the probability densities being assymetric as can be seen in \autoref{fig:snapshots}. \\
-
-The underlying reason for this is the wavefunction itself. The soutions alternate between even and odd functions around the $x = 0$ resulting in different symmetries of the probability densities \citep{quant_harmonic_osc}. \\
-
-While the particle with one eigenstate spends the majority of time at the bottom of the potential, the particles with multiple eigenstates oscillate. The chance of finding the particle outside of the potential increases as well. For instance, for a particle with one eigenstate this probability is around 16 \% \citep{the_quant_harmonic_osc}. \\
+\begin{table}[h!]
+    \centering
+    \renewcommand{\arraystretch}{1.2}
+    \setlength{\tabcolsep}{7pt}
+    \begin{tabular}{ccccc}
+    \toprule
+    & \multicolumn{2}{c}{\textbf{CIS}} & \multicolumn{2}{c}{\textbf{TDHF}} \\ 
+    \cmidrule(lr){2-3} \cmidrule(lr){4-5}
+    & cc-pvdz    & cc-pvtz    & cc-pvdz     & cc-pvtz    \\ 
+    \midrule
+    He                   & 51.947     & 31.807     & 51.577      & 31.608     \\
+    Ne                   & 49.010     & 33.210     & 48.871      & 33.174     \\
+    Be                   & 5.295      & 5.143      & 4.993       & 4.867      \\
+    \bottomrule
+    \end{tabular}
+    \caption{Excitation energies (in eV) for He, Ne, and Be atoms using the \texttt{cc-pvdz} and \texttt{cc-pvtz} basis sets obtained with the implemented CIS and TDHF methods.}
+    \label{tab:excitation_energies}
+\end{table}
 
 \section*{Generative AI Usage}
 In this work, \href{https://chatgpt.com}{ChatGPT} large language model was used to check grammar and spelling of the main body of text, whilst \href{https://www.perplexity.ai}{Perplexity} was utilised for the sake of literature search.
 
 \section*{Acknowledgments}
-This project is based on data and instructions provided by APina Romaniello available at the aforementioned \href{https://github.com/almakhmudov/LTTC-Homework--QD}{Github page}.
+This project is based on data and instructions provided by Pina Romaniello available at the aforementioned \href{https://github.com/almakhmudov/LTTC-Homework--CIS-TDHF}{Github page}.
 
 \bibliography{references}
 

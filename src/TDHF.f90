@@ -46,6 +46,7 @@ subroutine TDHF(nBas, nO, e, ERI_MO, nTDHFstates, omega)
             if (i == j .and. a == b) then
                 A_matrix(ia,jb) = e(a) - e(i)
             end if
+            ! Exchange terms
             A_matrix(ia,jb) = A_matrix(ia,jb) + 2.0d0 * ERI_MO(i,b,a,j) - ERI_MO(i,b,j,a)
             
             ! B matrix
