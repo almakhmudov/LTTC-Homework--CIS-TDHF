@@ -85,15 +85,6 @@ Ensure you have the following installed on your system:
 
 The program was tested on MacOS Sequoia 15.2. To test whether the installation was successful, you could run the calculations for He, Ne, and Be using the cc-pvdz and cc-pvtz basis sets and compare the obtained results to the expected output in the `test` folder. Alternatively, one could check the obtained values with the table below.
 
-<style type="text/css">
-.tg  {border-collapse:collapse;border-spacing:0;}
-.tg td{border-color:black;border-style:solid;border-width:1px;font-family:Arial, sans-serif;font-size:14px;
-  overflow:hidden;padding:10px 5px;word-break:normal;}
-.tg th{border-color:black;border-style:solid;border-width:1px;font-family:Arial, sans-serif;font-size:14px;
-  font-weight:normal;overflow:hidden;padding:10px 5px;word-break:normal;}
-.tg .tg-c3ow{border-color:inherit;text-align:center;vertical-align:top}
-.tg .tg-0pky{border-color:inherit;text-align:left;vertical-align:top}
-</style>
 <table class="tg"><thead>
   <tr>
     <th class="tg-0pky"></th>
