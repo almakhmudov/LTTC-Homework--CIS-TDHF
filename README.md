@@ -83,7 +83,14 @@ Ensure you have the following installed on your system:
 
 ## Test
 
-The program was tested on MacOS Sequoia 15.2. To test whether the installation was successful, you could run the calculations for He, Ne, and Be using the cc-pvdz and cc-pvtz basis sets and compare the obtained results to the expected output in the `test` folder.
+The program was tested on MacOS Sequoia 15.2. To test whether the installation was successful, you could run the calculations for He, Ne, and Be using the cc-pvdz and cc-pvtz basis sets and compare the obtained results to the expected output in the `test` folder. Alternatively, one could check the obtained values with the table below.
+
+|        |        CIS        |       TDHF        |
+|--------|:-------:|---------|:-------:|---------|
+|        | cc-pvdz | cc-pvtz | cc-pvdz | cc-pvtz |
+|   He   |  51.947 |  31.807 |  51.577 |  31.608 |
+|   Ne   |  49.010 |  33.210 |  48.871 |  33.174 |
+|   Be   |  5.295  |  5.143  |  4.993  |  4.867  |
 
 ## Usage
 
@@ -96,7 +103,7 @@ Example:
 ```
 
 > [!IMPORTANT]
-> This program works only with the aforementioned atoms, molecules and basis sets combintaions. Otherwise it won't produce any results.
+> This program works only with the aforementioned atoms, molecules and basis sets combinations. Otherwise it won't produce any results.
 
 ## Acknowledgments
 This project is based upon data and instructions provided by Pina Romaniello.
