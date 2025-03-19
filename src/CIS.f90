@@ -12,7 +12,7 @@ subroutine CIS(nBas, nO, e, ERI_MO, nCISstates, omega)
     ! Local variables
     integer :: i, j, a, b, ia, jb
     integer :: nV, nStates
-    double precision, allocatable :: M(:,:)
+    double precision, allocatable :: A_matrix(:,:)
 
     ! Hello World
     write(*,*)
@@ -28,10 +28,10 @@ subroutine CIS(nBas, nO, e, ERI_MO, nCISstates, omega)
     nStates = nO * nV
     
     ! Allocate memory for the CIS matrix
-    allocate(M(nStates, nStates))
+    allocate(A_matrix(nStates, nStates))
     
     ! Construct the CIS matrix
-    M = 0.0d0
+    A_matrix = 0.0d0
     do ia = 1, nStates
         i = (ia - 1) / nV + 1
         a = mod(ia - 1, nV) + nO + 1
@@ -42,16 +42,16 @@ subroutine CIS(nBas, nO, e, ERI_MO, nCISstates, omega)
             
             ! Diagonal term
             if (i == j .and. a == b) then
-                M(ia,jb) = e(a) - e(i)
+                A_matrix(ia,jb) = e(a) - e(i)
             end if
             
             ! Exchange terms
-            M(ia,jb) = M(ia,jb) + 2.0d0 * ERI_MO(i,b,a,j) - ERI_MO(i,b,j,a)
+            A_matrix(ia,jb) = A_matrix(ia,jb) + 2.0d0 * ERI_MO(i,b,a,j) - ERI_MO(i,b,j,a)
         end do
     end do
     
     ! Call the diagonalisation subroutine
-    call diagonalize_matrix(nStates, M, omega)
+    call diagonalize_matrix(nStates, A_matrix, omega)
     
     ! Print the excitation energies in eV
     write(*,*) '----------------------------------'
@@ -65,6 +65,6 @@ subroutine CIS(nBas, nO, e, ERI_MO, nCISstates, omega)
     write(*,*) '----------------------------------'
     
     ! Deallocate memory
-    deallocate(M)
+    deallocate(A_matrix)
     
 end subroutine CIS

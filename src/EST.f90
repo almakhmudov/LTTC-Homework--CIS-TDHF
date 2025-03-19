@@ -31,7 +31,8 @@ program EST
     double precision              :: start_HF,end_HF,t_HF
     double precision              :: start_AOtoMO,end_AOtoMO,t_AOtoMO
     double precision              :: start_CIS,end_CIS,t_CIS
-    integer                       :: nCISstates
+    double precision              :: start_TDHF,end_TDHF,t_TDHF
+    integer                       :: nCISstates,nTDHFstates
   
   ! Hello World
   
@@ -111,6 +112,20 @@ program EST
     call cpu_time(end_CIS)
     
     t_CIS = end_CIS - start_CIS
+    deallocate(omega)
+  !------------------------------------------------------------------------
+  ! TDHF Calculation
+  !------------------------------------------------------------------------
+    
+    ! Determine number of TDHF states to calculate
+    nTDHFstates = nO * nV
+    allocate(omega(nTDHFstates))
+
+    call cpu_time(start_TDHF)
+    call TDHF(nBas, nO, e, ERI_MO, nTDHFstates, omega)
+    call cpu_time(end_TDHF)
+    
+    t_TDHF = end_TDHF - start_TDHF
 
   !------------------------------------------------------------------------
   ! Timing information
@@ -124,6 +139,9 @@ program EST
     write(*,'(A45,1X,F9.5,A8)') 'Total CPU time for HF = ',t_HF,' seconds'
     write(*,'(A45,1X,F9.5,A8)') 'Total CPU time for AO to MO transformation = ',t_AOtoMO,' seconds'
     write(*,'(A45,1X,F9.5,A8)') 'Total CPU time for CIS = ',t_CIS,' seconds'
+    write(*,'(A45,1X,F9.5,A8)') 'Total CPU time for TDHF = ',t_TDHF,' seconds'
+    write(*,*) '--------------------------------------------------------------------------------'
+    write(*, '(A45,1X,F9.5,A8)') 'Total CPU time for the program',t_HF + t_AOtoMO + t_CIS + t_TDHF,' seconds'
 
   !------------------------------------------------------------------------
   ! End of EST
