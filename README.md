@@ -83,7 +83,7 @@ Ensure you have the following installed on your system:
 
 ## Test
 
-The program was tested on MacOS Sequoia 15.2. To test whether the installation was successful, you could run the calculations for He, Ne, and Be using the cc-pvdz and cc-pvtz basis sets and compare the obtained results to the expected output in the `test` folder. Alternatively, one could check the obtained values with the table below.
+The program was tested on MacOS Sequoia 15.2. To test whether the installation was successful, you could run the calculations for He, Ne, and Be using the cc-pvdz and cc-pvtz basis sets and compare the obtained results to the expected output in the `test` folder. Alternatively, one could check the obtained values with the table below (all the values are in eV).
 
 <table class="tg"><thead>
   <tr>
